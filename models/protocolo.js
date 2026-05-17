@@ -5,7 +5,8 @@ const protocolo5Schema = new mongoose.Schema({
   familias_encontradas: [{
     nombre_familia: String,
     valor_bmwp: Number,
-    imagen_url: String
+    imagen_url: String,
+    cantidad: { type: Number, default: 1 }
   }],
   sumatoria_total_bmwp: { type: Number, default: 0 }
 });

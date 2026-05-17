@@ -51,33 +51,30 @@ router.post('/sincronizar', auth, async (req, res) => {
       }
 
       // ====================================================================
-      // --- MAGIA 2: INTERCEPTAR FOTOS DEL CARRITO (Protocolo 5) ---
+      // --- MAGIA 2: INTERCEPTAR FOTOS DEL CARRITO (Protocolo 5) - CORREGIDO ---
       // ====================================================================
-      
-      // Buscamos el carrito ya sea que venga en 'datos_formulario' (tu caso actual)
-      // o en 'datos_protocolo_5'
-      const carrito = (datos_formulario && datos_formulario.carrito) || 
-                      (datos_protocolo_5 && datos_protocolo_5.carrito);
-
-      if (carrito && Array.isArray(carrito)) {
-        for (let item of carrito) {
+      if (datos_protocolo_5 && datos_protocolo_5.familias_encontradas && Array.isArray(datos_protocolo_5.familias_encontradas)) {
+        for (let item of datos_protocolo_5.familias_encontradas) {
           if (item.foto_base64) {
             try {
-              console.log(`[Protocolo 5] Subiendo evidencia de ${item.nombre} a Cloudinary...`);
+              console.log(`[Protocolo 5] Subiendo evidencia de ${item.nombre_familia} a Cloudinary...`);
               
-              const base64ParaCloudinary = `data:image/jpeg;base64,${item.foto_base64}`;
+              // Validación del encabezado Data-URI por seguridad
+              const base64ParaCloudinary = item.foto_base64.startsWith('data:image')
+                ? item.foto_base64
+                : `data:image/jpeg;base64,${item.foto_base64}`;
               
               const uploadRes = await cloudinary.uploader.upload(base64ParaCloudinary, {
                 folder: 'deepbug_macroinvertebrados' 
               });
 
-              // Guardamos la URL y borramos el Base64
-              item.foto_url = uploadRes.secure_url;
-              delete item.foto_base64;
+              // Guardamos en las llaves oficiales del modelo de Mongoose
+              item.imagen_url = uploadRes.secure_url;
+              delete item.foto_base64; // Eliminamos el texto pesado para no inflar Mongo
               
-              console.log(`✅ Foto de ${item.nombre} subida con éxito: ${uploadRes.secure_url}`);
+              console.log(`✅ Foto de ${item.nombre_familia} subida con éxito: ${uploadRes.secure_url}`);
             } catch (error) {
-              console.error(`❌ Error subiendo foto de ${item.nombre}:`, error);
+              console.error(`❌ Error subiendo foto de ${item.nombre_familia}:`, error);
             }
           }
         }
