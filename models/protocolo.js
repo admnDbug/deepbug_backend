@@ -24,7 +24,7 @@ const protocoloSchema = new mongoose.Schema({
   datos_protocolo_5: protocolo5Schema,
   
   // Para manejar los conflictos si dos biólogos suben lo mismo sin internet
-  estado: { type: String, enum: ['aprobado', 'en_conflicto'], default: 'aprobado' }
+  estado: { type: String, enum: ['aprobado', 'en_conflicto', 'descartado'], default: 'aprobado' }
 });
 
 module.exports = mongoose.model('Protocolo', protocoloSchema);
