@@ -110,5 +110,42 @@ router.delete('/:id', auth, async (req, res) => {
     res.status(500).json({ mensaje: 'Error al eliminar la zona.' });
   }
 });
+// --- OBTENER UNA ZONA INDIVIDUAL POR ID (Para precarga en el Frontend) ---
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const zona = await Zona.findById(req.params.id);
+    if (!zona) return res.status(404).json({ mensaje: 'Zona no encontrada' });
+    res.json(zona);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensaje: 'Error al obtener la zona' });
+  }
+});
 
+// --- MODIFICAR CONFIGURACIÓN DE UNA ZONA EXISTENTE (PUT) ---
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const { nombre, coordenadas, ubicacion, descripcion, catalogo_familias } = req.body;
+
+    const zonaActualizada = await Zona.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          nombre,
+          coordenadas,
+          ubicacion,
+          descripcion,
+          catalogo_familias // Se reemplaza con la nueva lista modificada
+        }
+      },
+      { new: true } // Nos devuelve el documento modificado
+    );
+
+    if (!zonaActualizada) return res.status(404).json({ mensaje: 'La zona no existe' });
+    res.json({ mensaje: 'Zona modificada exitosamente', zona: zonaActualizada });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensaje: 'Error interno al actualizar la zona' });
+  }
+});
 module.exports = router;

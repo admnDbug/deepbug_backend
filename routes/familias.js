@@ -60,5 +60,38 @@ router.post('/', [auth, upload.single('imagen')], async (req, res) => {
     res.status(500).json({ mensaje: 'Error al registrar la familia en el catálogo.' });
   }
 });
+// --- ACTUALIZAR PARÁMETROS DE UNA FAMILIA (PUT con Multer Opcional) ---
+router.put('/:id', auth, upload.single('imagen'), async (req, res) => {
+  try {
+    const { nombre_familia, orden, tamano, descripcion } = req.body;
+    
+    // Armamos los datos base a modificar
+    let updateFields = {
+      nombre_familia,
+      orden,
+      tamano: parseFloat(tamano) || 0,
+      descripcion
+    };
 
+    // Si el usuario subió un archivo físico nuevo en el modal, se actualiza en Cloudinary
+    if (req.file) {
+      updateFields.imagen_url = req.file.path; // URL segura de Cloudinary generada por la carga
+    }
+
+    const familiaModificada = await Familia.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateFields },
+      { new: true }
+    );
+
+    if (!familiaModificada) {
+      return res.status(404).json({ mensaje: 'Familia no encontrada en el catálogo global.' });
+    }
+
+    res.json({ mensaje: 'Familia modificada exitosamente', familia: familiaModificada });
+  } catch (error) {
+    console.error("Error al mutar familia:", error);
+    res.status(500).json({ mensaje: 'Error del servidor al modificar la familia.' });
+  }
+});
 module.exports = router;
