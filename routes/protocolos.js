@@ -15,6 +15,44 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// ====================================================================
+// 🧼 HELPER MAESTRO: EXTRAER Y ELIMINAR IMÁGENES DE CLOUDINARY
+// ====================================================================
+async function eliminarImagenesDeProtocolo(protocolo) {
+  if (!protocolo) return;
+  const urlsAELiminar = [];
+
+  // Caso Protocolos 1 al 4: Buscamos en datos_formulario (ej. foto_url de Protocolo 2)
+  if (protocolo.datos_formulario) {
+    if (protocolo.datos_formulario.foto_url) urlsAELiminar.push(protocolo.datos_formulario.foto_url);
+    if (protocolo.datos_formulario.imagen_url) urlsAELiminar.push(protocolo.datos_formulario.imagen_url);
+  }
+
+  // Caso Protocolo 5: Buscamos en el arreglo de familias encontradas
+  if (protocolo.datos_protocolo_5 && protocolo.datos_protocolo_5.familias_encontradas) {
+    protocolo.datos_protocolo_5.familias_encontradas.forEach(f => {
+      if (f.imagen_url) urlsAELiminar.push(f.imagen_url);
+    });
+  }
+
+  // Ejecutamos el borrado físico en Cloudinary mapeando el public_id correcto
+  for (const url of urlsAELiminar) {
+    const parts = url.split('/upload/');
+    if (parts.length >= 2) {
+      // Recorta la versión (v1715...) y la extensión (.jpg/.png) manteniendo subcarpetas
+      const publicIdWithExt = parts[1].replace(/^v\d+\//, '');
+      const publicId = publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf('.'));
+      
+      try {
+        console.log(`[Cloudinary Cleanup] Eliminando recurso: ${publicId}`);
+        await cloudinary.uploader.destroy(publicId);
+      } catch (err) {
+        console.error(`❌ Error al destruir ${publicId} en Cloudinary:`, err);
+      }
+    }
+  }
+}
+
 // --- 1. SINCRONIZAR (CREAR O ACTUALIZAR) PROTOCOLOS ---
 router.post('/sincronizar', auth, async (req, res) => {
   try {
@@ -171,40 +209,47 @@ router.get('/:biomonitoreo_id', auth, async (req, res) => {
   }
 });
 
-// --- 3. RESOLVER CONFLICTO ---
-router.put('/resolver/:id_protocolo', auth, async (req, res) => {
+// --- 3. RESOLVER CONFLICTO (CON PURGA DE IMÁGENES) ---
+router.put('/resolver/:id', auth, async (req, res) => {
   try {
-    if (req.usuario.rol === 'Colaborador') {
-      return res.status(403).json({ mensaje: 'No tienes permisos para resolver conflictos.' });
-    }
+    const { id } = req.params;
+    const { accion } = req.body;
 
-    const { id_protocolo } = req.params;
-    const { accion } = req.body; 
-
-    const protocolo = await Protocolo.findById(id_protocolo);
+    const protocolo = await Protocolo.findById(id);
     if (!protocolo) {
       return res.status(404).json({ mensaje: 'Protocolo no encontrado' });
     }
 
     if (accion === 'aprobar') {
-      await Protocolo.findOneAndUpdate(
-        { 
-          biomonitoreo_id: protocolo.biomonitoreo_id, 
-          protocolo_numero: protocolo.protocolo_numero, 
-          estado: 'aprobado' 
-        },
-        { estado: 'descartado' }
-      );
+      // 1. Buscamos el protocolo que estaba aprobado actualmente en la web
+      const antiguoAprobado = await Protocolo.findOne({ 
+        biomonitoreo_id: protocolo.biomonitoreo_id, 
+        protocolo_numero: protocolo.protocolo_numero, 
+        estado: 'aprobado' 
+      });
+      
+      if (antiguoAprobado) {
+        antiguoAprobado.estado = 'descartado';
+        await antiguoAprobado.save();
+        // 🔥 Purga: Como el viejo ya perdió y quedó descartado, borramos sus fotos
+        await eliminarImagenesDeProtocolo(antiguoAprobado);
+      }
 
+      // 2. Volvemos aprobado el protocolo entrante
       protocolo.estado = 'aprobado';
       await protocolo.save();
       
-      return res.json({ mensaje: 'Protocolo aprobado exitosamente', protocolo });
+      return res.json({ mensaje: 'Protocolo aprobado exitosamente y fotos obsoletas limpiadas', protocolo });
       
     } else if (accion === 'descartar') {
+      // El protocolo entrante se rechaza directamente
       protocolo.estado = 'descartado';
       await protocolo.save();
-      return res.json({ mensaje: 'Protocolo descartado', protocolo });
+      
+      // 🔥 Purga: Borramos las fotos de este protocolo rechazado
+      await eliminarImagenesDeProtocolo(protocolo);
+      
+      return res.json({ mensaje: 'Protocolo descartado y evidencias eliminadas de Cloudinary', protocolo });
     } else {
       return res.status(400).json({ mensaje: 'Acción no válida. Usa "aprobar" o "descartar".' });
     }
