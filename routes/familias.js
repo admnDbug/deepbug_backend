@@ -78,11 +78,15 @@ router.put('/:id', auth, upload.single('imagen'), async (req, res) => {
       updateFields.imagen_url = req.file.path; // URL segura de Cloudinary generada por la carga
     }
 
-    const familiaModificada = await Familia.findByIdAndUpdate(
+    // ====================================================================
+    // 🔒 CORRECCIÓN: Cambiado de Familia a FamiliaGlobal para corregir el ReferenceError
+    // ====================================================================
+    const familiaModificada = await FamiliaGlobal.findByIdAndUpdate(
       req.params.id,
       { $set: updateFields },
       { new: true }
     );
+    // ====================================================================
 
     if (!familiaModificada) {
       return res.status(404).json({ mensaje: 'Familia no encontrada en el catálogo global.' });
@@ -91,7 +95,7 @@ router.put('/:id', auth, upload.single('imagen'), async (req, res) => {
     res.json({ mensaje: 'Familia modificada exitosamente', familia: familiaModificada });
   } catch (error) {
     console.error("Error al mutar familia:", error);
-    res.status(500).json({ mensaje: 'Error del servidor al modificar la familia.' });
+    res.status(500).json({ mensaje: 'Error del servidor al modificar la familia.', detalles: error.message });
   }
 });
 module.exports = router;
