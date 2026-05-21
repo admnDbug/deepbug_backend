@@ -138,7 +138,7 @@ router.put('/:id', auth, async (req, res) => {
           catalogo_familias // Se reemplaza con la nueva lista modificada
         }
       },
-      { new: true } // Nos devuelve el documento modificado
+      { returnDocument: 'after' } // <--- EL NUEVO ESTÁNDAR
     );
 
     if (!zonaActualizada) return res.status(404).json({ mensaje: 'La zona no existe' });
