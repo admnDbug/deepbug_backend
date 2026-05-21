@@ -1,15 +1,12 @@
 // Archivo: routes/zonas.js
 const express = require('express');
 const router = express.Router();
-const Zona = require('../models/zonas'); // <-- Ojo aquí con el nombre de tu modelo
-const auth = require('../middleware/auth'); // Importamos a nuestro Guardia
+const Zona = require('../models/zonas'); 
+const auth = require('../middleware/auth'); 
 const upload = require('../middleware/upload');
 
 
 // --- 1. OBTENER TODAS LAS ZONAS Y SUS CATÁLOGOS ---
-// URL: GET http://localhost:3000/api/zonas
-// Nota: Pusimos 'auth' a la mitad. Esto obliga a que pase por el guardia primero.
-// Archivo: routes/zonas.js (o donde tengas tus endpoints de zonas)
 router.get('/', auth, async (req, res) => {
   try {
     // BLOQUEO DE SEGURIDAD: Los colaboradores no tienen por qué ver el catálogo raíz
@@ -19,7 +16,6 @@ router.get('/', auth, async (req, res) => {
       });
     }
 
-    // Si pasa el filtro (es Responsable o Admin), le devolvemos la lista
     const zonas = await Zona.find();
     res.json(zonas);
     
@@ -30,7 +26,6 @@ router.get('/', auth, async (req, res) => {
 });
 
 // --- 2. CREAR UNA NUEVA ZONA ---
-// URL: POST http://localhost:3000/api/zonas
 router.post('/', auth, async (req, res) => {
   try {
     // REGLA DE NEGOCIO: Solo Responsable o Administrador pueden crear Zonas
@@ -38,7 +33,6 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ mensaje: 'No tienes permisos para crear zonas o catálogos.' });
     }
 
-    // Si tiene permiso, creamos la zona con lo que nos manden en el JSON
     const nuevaZona = new Zona(req.body);
     await nuevaZona.save();
     
@@ -49,11 +43,10 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// RUTA PARA AGREGAR UNA FAMILIA A UNA ZONA EXISTENTE
-// URL: POST http://localhost:3000/api/zonas/:zonaId/familia
+// --- RUTA PARA AGREGAR UNA FAMILIA A UNA ZONA EXISTENTE (CON IMAGEN) ---
+// (Mantenemos esta ruta por si la usas en otra parte de tu sistema con Multer)
 router.post('/:zonaId/familia', [auth, upload.single('imagen')], async (req, res) => {
   try {
-    // REGLA RN13: Candado de seguridad para el rol
     if (req.usuario.rol === 'Colaborador') {
       return res.status(403).json({ mensaje: 'No tienes permisos para modificar catálogos.' });
     }
@@ -61,8 +54,6 @@ router.post('/:zonaId/familia', [auth, upload.single('imagen')], async (req, res
     const { zonaId } = req.params;
     const { nombre_familia, orden, valor_bmwp, tamano } = req.body;
 
-    console.log("Archivo atrapado por Multer:", req.file);
-    // Validación por si el frontend no envió la imagen
     if (!req.file) {
       return res.status(400).json({ mensaje: 'Debes incluir una imagen para la familia.' });
     }
@@ -75,7 +66,7 @@ router.post('/:zonaId/familia', [auth, upload.single('imagen')], async (req, res
       orden,
       valor_bmwp,
       tamano,
-      imagen_url: req.file.path // <-- El link que nos dio Cloudinary
+      imagen_url: req.file.path
     };
 
     zona.catalogo_familias.push(nuevaFamilia);
@@ -89,10 +80,8 @@ router.post('/:zonaId/familia', [auth, upload.single('imagen')], async (req, res
 });
 
 // --- 3. ELIMINAR UNA ZONA ---
-// URL: DELETE http://localhost:3000/api/zonas/:id
 router.delete('/:id', auth, async (req, res) => {
   try {
-    // Candado de seguridad: Solo Responsables o Administradores pueden eliminar
     if (req.usuario.rol === 'Colaborador') {
       return res.status(403).json({ mensaje: 'No tienes permisos para eliminar zonas.' });
     }
@@ -110,6 +99,7 @@ router.delete('/:id', auth, async (req, res) => {
     res.status(500).json({ mensaje: 'Error al eliminar la zona.' });
   }
 });
+
 // --- OBTENER UNA ZONA INDIVIDUAL POR ID (Para precarga en el Frontend) ---
 router.get('/:id', auth, async (req, res) => {
   try {
@@ -122,10 +112,11 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// --- MODIFICAR CONFIGURACIÓN DE UNA ZONA EXISTENTE (PUT) ---
+// --- MODIFICAR CONFIGURACIÓN GENERAL DE UNA ZONA EXISTENTE (PUT) ---
+// *MODIFICADO*: Ya no actualiza el array de familias, solo los datos generales
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { nombre, coordenadas, ubicacion, descripcion, catalogo_familias } = req.body;
+    const { nombre, coordenadas, ubicacion, descripcion } = req.body;
 
     const zonaActualizada = await Zona.findByIdAndUpdate(
       req.params.id,
@@ -134,11 +125,10 @@ router.put('/:id', auth, async (req, res) => {
           nombre,
           coordenadas,
           ubicacion,
-          descripcion,
-          catalogo_familias // Se reemplaza con la nueva lista modificada
+          descripcion
         }
       },
-      { returnDocument: 'after' } // <--- EL NUEVO ESTÁNDAR
+      { returnDocument: 'after' } 
     );
 
     if (!zonaActualizada) return res.status(404).json({ mensaje: 'La zona no existe' });
@@ -148,4 +138,57 @@ router.put('/:id', auth, async (req, res) => {
     res.status(500).json({ mensaje: 'Error interno al actualizar la zona' });
   }
 });
+
+// --- ENDPOINT PARA AÑADIR UNA FAMILIA A UNA ZONA SIN BORRAR LAS DEMÁS (POST ATÓMICO) ---
+router.post('/:id/familias', auth, async (req, res) => {
+  try {
+    const { nombre_familia, orden, valor_bmwp, tamano, imagen_url } = req.body;
+
+    const zonaActualizada = await Zona.findOneAndUpdate(
+      { 
+        _id: req.params.id, 
+        'catalogo_familias.nombre_familia': { $ne: nombre_familia } 
+      },
+      {
+        $push: {
+          catalogo_familias: { nombre_familia, orden, valor_bmwp, tamano, imagen_url }
+        }
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!zonaActualizada) {
+      const zonaExiste = await Zona.findById(req.params.id);
+      if (!zonaExiste) return res.status(404).json({ mensaje: 'La zona no existe' });
+      
+      return res.status(400).json({ mensaje: 'Esta familia ya está registrada en esta zona' });
+    }
+
+    res.json({ mensaje: 'Macroinvertebrado registrado con éxito', zona: zonaActualizada });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensaje: 'Error al registrar la familia en la zona' });
+  }
+});
+
+// --- ENDPOINT PARA ELIMINAR UNA FAMILIA DE UNA ZONA SIN BORRAR LAS DEMÁS (DELETE ATÓMICO) ---
+// *NUEVO*: Permite quitar una familia específica usando el botón "X" del frontend
+router.delete('/:id/familias/:nombre', auth, async (req, res) => {
+  try {
+    const zonaActualizada = await Zona.findByIdAndUpdate(
+      req.params.id,
+      { 
+        $pull: { catalogo_familias: { nombre_familia: req.params.nombre } } 
+      },
+      { returnDocument: 'after' }
+    );
+    
+    if (!zonaActualizada) return res.status(404).json({ mensaje: 'Zona no encontrada' });
+    res.json({ mensaje: 'Familia removida exitosamente', zona: zonaActualizada });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensaje: 'Error al remover la familia de la zona' });
+  }
+});
+
 module.exports = router;
