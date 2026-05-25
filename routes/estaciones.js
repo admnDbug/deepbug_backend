@@ -78,7 +78,7 @@ router.get('/', auth, async (req, res) => {
         { colaboradores_id: req.usuario.id }
       ]
     })
-    .populate('zona_id', 'nombre')
+    .populate('zona_id', 'nombre ubicacion')
     .populate('responsable_id', 'nombre')
     .populate('colaboradores_id', 'nombre')
     .sort({ fecha_creacion: -1 });
