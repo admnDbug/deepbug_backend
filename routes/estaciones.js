@@ -1,13 +1,11 @@
 // Archivo: routes/estaciones.js
 const express = require('express');
 const router = express.Router();
-const estacion = require('../models/estacion');
+// 1. CORRECCIÓN: El modelo SIEMPRE se importa con Mayúscula inicial
+const Estacion = require('../models/estacion'); 
 const auth = require('../middleware/auth');
-const Protocolo = require('../models/protocolo'); // Asegura la importación del modelo de protocolos
+const Protocolo = require('../models/protocolo'); 
 
-// ====================================================================
-// 🔓 CORRECCIÓN: CONFIGURACIÓN DE CLOUDINARY PARA LIMPIEZA EN CASCADA
-// ====================================================================
 const cloudinary = require('cloudinary').v2;
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -15,66 +13,66 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Función auxiliar para generar un código alfanumérico aleatorio (Ej. LERM-X9)
 function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-// --- 1. CREAR UN NUEVO estacion ---
+// --- 1. CREAR UNA NUEVA ESTACIÓN ---
 router.post('/', auth, async (req, res) => {
   try {
     if (req.usuario.rol === 'Colaborador') {
-      return res.status(403).json({ mensaje: 'Los colaboradores no pueden crear proyectos.' });
+      return res.status(403).json({ mensaje: 'Los colaboradores no pueden crear estaciones.' });
     }
-    const { nombre_proyecto, zona_id } = req.body;
+    // 2. CORRECCIÓN: Ahora recibimos nombre_estacion
+    const { nombre_estacion, zona_id } = req.body; 
     const codigo_invitacion = generarCodigo();
 
-    const nuevaEstacion = new estacion({
-      nombre_proyecto,
+    const nuevaEstacion = new Estacion({
+      nombre_estacion,
       zona_id,
       codigo_invitacion,
       responsable_id: [req.usuario.id]
     });
 
     await nuevaEstacion.save();
-    res.status(201).json({ mensaje: 'Estacion creada exitosamente', estacion: nuevaEstacion });
+    res.status(201).json({ mensaje: 'Estación creada exitosamente', estacion: nuevaEstacion });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al crear el estacion' });
+    res.status(500).json({ mensaje: 'Error al crear la estación' });
   }
 });
 
-// --- 2. UNIRSE A UN PROYECTO CON CÓDIGO ---
+// --- 2. UNIRSE A UNA ESTACIÓN CON CÓDIGO ---
 router.post('/unirse', auth, async (req, res) => {
   try {
     const { codigo_invitacion } = req.body;
-    const proyecto = await estacion.findOne({ codigo_invitacion });
+    const estacionDoc = await Estacion.findOne({ codigo_invitacion });
 
-    if (!proyecto) {
+    if (!estacionDoc) {
       return res.status(404).json({ mensaje: 'Código de invitación inválido o no existe.' });
     }
 
     const userIdText = req.usuario.id.toString();
-    const yaEsColaborador = proyecto.colaboradores_id.some(id => id.toString() === userIdText);
-    const yaEsResponsable = proyecto.responsable_id.some(id => id.toString() === userIdText);
+    const yaEsColaborador = estacionDoc.colaboradores_id.some(id => id.toString() === userIdText);
+    const yaEsResponsable = estacionDoc.responsable_id.some(id => id.toString() === userIdText);
 
     if (yaEsColaborador || yaEsResponsable) {
-      return res.status(400).json({ mensaje: 'Ya eres miembro de este proyecto.' });
+      return res.status(400).json({ mensaje: 'Ya eres miembro de esta estación.' });
     }
 
-    proyecto.colaboradores_id.push(req.usuario.id);
-    await proyecto.save();
-    res.json({ mensaje: 'Te has unido al proyecto exitosamente', proyecto });
+    estacionDoc.colaboradores_id.push(req.usuario.id);
+    await estacionDoc.save();
+    res.json({ mensaje: 'Te has unido a la estación exitosamente', estacion: estacionDoc });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al unirse al proyecto' });
+    res.status(500).json({ mensaje: 'Error al unirse a la estación' });
   }
 });
 
-// --- 3. OBTENER MIS PROYECTOS (DASHBOARD) ---
+// --- 3. OBTENER MIS ESTACIONES (DASHBOARD) ---
 router.get('/', auth, async (req, res) => {
   try {
-    const misEstaciones = await estacion.find({
+    const misEstaciones = await Estacion.find({
       $or: [
         { responsable_id: req.usuario.id },
         { colaboradores_id: req.usuario.id }
@@ -88,26 +86,25 @@ router.get('/', auth, async (req, res) => {
     res.json(misEstaciones);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al obtener los proyectos' });
+    res.status(500).json({ mensaje: 'Error al obtener las estaciones' });
   }
 });
 
-// --- 6. OBTENER DATOS PARA EL MAPA DEL DASHBOARD (COORDS P2 + BMWP P5) ---
+// --- 4. OBTENER DATOS PARA EL MAPA DEL DASHBOARD (COORDS P2 + BMWP P5) ---
 router.get('/mapa-datos', auth, async (req, res) => {
   try {
     const estaciones = await Estacion.find({})
       .populate('zona_id', 'nombre')
       .populate('responsable_id', 'nombre');
 
-    const estacionesParaMapa = await Promise.all(estaciones.map(async (estacion) => {
-      let obj = estacion.toObject();
+    const estacionesParaMapa = await Promise.all(estaciones.map(async (estacionDoc) => {
+      let obj = estacionDoc.toObject();
       obj.bmwp_total = null;
       obj.latitud = null;
       obj.longitud = null;
 
-      // A) Extraer Coordenadas del Protocolo 2 (Viven dentro del objeto 'textos')
       const p2 = await Protocolo.findOne({ 
-        estacion_id: estacion._id, // Nota: Si cambiaste este campo en el Schema a estacion_id, actualízalo aquí
+        estacion_id: estacionDoc._id, 
         protocolo_numero: 2 
       });
       
@@ -116,10 +113,9 @@ router.get('/mapa-datos', auth, async (req, res) => {
         obj.longitud = parseFloat(p2.datos_formulario.textos.longitud);
       }
 
-      // B) Extraer BMWP del Protocolo 5
-      if (estacion.estado_protocolos && estacion.estado_protocolos.protocolo5 > 0) {
+      if (estacionDoc.estado_protocolos && estacionDoc.estado_protocolos.protocolo5 > 0) {
         const p5 = await Protocolo.findOne({ 
-            estacion_id: estacion._id, 
+            estacion_id: estacionDoc._id, 
             protocolo_numero: 5,
             estado: 'aprobado'
         });
@@ -137,24 +133,24 @@ router.get('/mapa-datos', auth, async (req, res) => {
   }
 });
 
-// --- 4. REMOVER COLABORADOR ---
+// --- 5. REMOVER COLABORADOR ---
 router.put('/:id/remover-colaborador', auth, async (req, res) => {
   try {
     const { id } = req.params;
     const { colaborador_id } = req.body;
 
-    const estacion = await estacion.findById(id);
-    if (!estacion) return res.status(404).json({ mensaje: 'Estacion no encontrado' });
+    const estacionDoc = await Estacion.findById(id);
+    if (!estacionDoc) return res.status(404).json({ mensaje: 'Estación no encontrada' });
 
-    if (!estacion.responsable_id.some(id => id.toString() === req.usuario.id.toString())) {
+    if (!estacionDoc.responsable_id.some(id => id.toString() === req.usuario.id.toString())) {
       return res.status(403).json({ mensaje: 'Solo el Responsable puede eliminar colaboradores' });
     }
 
-    estacion.colaboradores_id = estacion.colaboradores_id.filter(
+    estacionDoc.colaboradores_id = estacionDoc.colaboradores_id.filter(
       colab => colab.toString() !== colaborador_id
     );
 
-    await estacion.save();
+    await estacionDoc.save();
     res.json({ mensaje: 'Colaborador removido exitosamente' });
   } catch (error) {
     console.error(error);
@@ -162,71 +158,64 @@ router.put('/:id/remover-colaborador', auth, async (req, res) => {
   }
 });
 
-// --- 5. OBTENER UN SOLO PROYECTO POR ID ---
+// --- 6. OBTENER UNA SOLA ESTACIÓN POR ID ---
 router.get('/:id', auth, async (req, res) => {
   try {
-    const proyecto = await estacion.findById(req.params.id)
+    const estacionDoc = await Estacion.findById(req.params.id)
       .populate('zona_id', 'nombre catalogo_familias')
       .populate('responsable_id', 'nombre email')
       .populate('colaboradores_id', 'nombre email');
 
-    if (!proyecto) {
-      return res.status(404).json({ mensaje: 'Estacion no encontrado' });
+    if (!estacionDoc) {
+      return res.status(404).json({ mensaje: 'Estación no encontrada' });
     }
-    res.json(proyecto);
+    res.json(estacionDoc);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al obtener la estacion' });
+    res.status(500).json({ mensaje: 'Error al obtener la estación' });
   }
 });
 
-// --- 7. ELIMINAR UN PROYECTO COMPLETO (CON PURGA EN CASCADA COMPLETA DE IMÁGENES) ---
+// --- 7. ELIMINAR UNA ESTACIÓN COMPLETA (CON PURGA EN CASCADA COMPLETA DE IMÁGENES) ---
 router.delete('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const proyecto = await estacion.findById(id);
+    const estacionDoc = await Estacion.findById(id);
 
-    if (!proyecto) {
-      return res.status(404).json({ mensaje: 'Estacion no encontrada' });
+    if (!estacionDoc) {
+      return res.status(404).json({ mensaje: 'Estación no encontrada' });
     }
 
-    // 🔒 Seguridad: Verificamos que el que pide eliminar sea legalmente responsable
     const userIdText = req.usuario.id.toString();
-    const esResponsable = proyecto.responsable_id.some(respId => respId.toString() === userIdText);
+    const esResponsable = estacionDoc.responsable_id.some(respId => respId.toString() === userIdText);
 
     if (!esResponsable) {
-      return res.status(403).json({ mensaje: 'Solo el responsable puede eliminar esta estacion.' });
+      return res.status(403).json({ mensaje: 'Solo el responsable puede eliminar esta estación.' });
     }
 
-    // A) Encontrar todos los protocolos vinculados a este proyecto para raspar sus fotos
     const protocolosAsociados = await Protocolo.find({ estacion_id: id });
-    console.log(`[Purga Global] Iniciando limpieza de imágenes para el proyecto: ${id}`);
+    console.log(`[Purga Global] Iniciando limpieza de imágenes para la estación: ${id}`);
     
-    // B) Iteramos cada protocolo para destruir las evidencias en Cloudinary
-    for (const protocolo of protocolosAsociados) { // <-- CORREGIDO: Cambiado de CleanProtos a protocolosAsociados
+    for (const protocolo of protocolosAsociados) { 
       const urlsAELiminar = [];
       
-      // Fotos de Protocolos del 1 al 4
       if (protocolo.datos_formulario) {
         if (protocolo.datos_formulario.foto_url) urlsAELiminar.push(protocolo.datos_formulario.foto_url);
         if (protocolo.datos_formulario.imagen_url) urlsAELiminar.push(protocolo.datos_formulario.imagen_url);
       }
       
-      // Fotos de las muestras del Protocolo 5
       if (protocolo.datos_protocolo_5 && protocolo.datos_protocolo_5.familias_encontradas) {
         protocolo.datos_protocolo_5.familias_encontradas.forEach(f => {
           if (f.imagen_url) urlsAELiminar.push(f.imagen_url);
         });
       }
 
-      // Proceso físico de demolición de archivos en la nube
       for (const url of urlsAELiminar) {
         const parts = url.split('/upload/');
         if (parts.length >= 2) {
           const publicIdWithExt = parts[1].replace(/^v\d+\//, '');
           const publicId = publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf('.'));
           try {
-            console.log(`[Cloudinary Cascading] Destruyendo: ${publicId}`);
             await cloudinary.uploader.destroy(publicId);
           } catch (err) {
             console.error(`Error borrando ${publicId} de Cloudinary:`, err);
@@ -235,41 +224,40 @@ router.delete('/:id', auth, async (req, res) => {
       }
     }
 
-    // C) Borramos de raíz los registros lógicos en MongoDB
     await Protocolo.deleteMany({ estacion_id: id });
-    await estacion.findByIdAndDelete(id);
+    await Estacion.findByIdAndDelete(id);
 
-    res.json({ mensaje: '¡Éxito! La estacion, todos sus protocolos y sus respectivas imágenes en Cloudinary han sido eliminados de raíz de forma segura.' });
+    res.json({ mensaje: '¡Éxito! La estación, todos sus protocolos y sus respectivas imágenes han sido eliminados de raíz.' });
   } catch (error) {
     console.error("Error en borrado en cascada:", error);
-    res.status(500).json({ mensaje: 'Error al eliminar el proyecto' });
+    res.status(500).json({ mensaje: 'Error al eliminar la estación' });
   }
 });
 
-// --- 8. SALIR DE UN PROYECTO (VOLUNTARIAMENTE) ---
+// --- 8. SALIR DE UNA ESTACIÓN (VOLUNTARIAMENTE) ---
 router.put('/:id/salir', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const estacion = await estacion.findById(id);
+    const estacionDoc = await Estacion.findById(id);
 
-    if (!estacion) {
-      return res.status(404).json({ mensaje: 'Estacion no encontrada' });
+    if (!estacionDoc) {
+      return res.status(404).json({ mensaje: 'Estación no encontrada' });
     }
 
     const userIdText = req.usuario.id.toString();
-    const esColaborador = estacion.colaboradores_id.some(colab => colab.toString() === userIdText);
+    const esColaborador = estacionDoc.colaboradores_id.some(colab => colab.toString() === userIdText);
 
     if (!esColaborador) {
-      return res.status(400).json({ mensaje: 'No eres colaborador de esta estacion o ya saliste.' });
+      return res.status(400).json({ mensaje: 'No eres colaborador de esta estación o ya saliste.' });
     }
 
-    estacion.colaboradores_id = estacion.colaboradores_id.filter(colab => colab.toString() !== userIdText);
-    await estacion.save();
+    estacionDoc.colaboradores_id = estacionDoc.colaboradores_id.filter(colab => colab.toString() !== userIdText);
+    await estacionDoc.save();
     
-    res.json({ mensaje: 'Has salido de la estacion exitosamente.' });
+    res.json({ mensaje: 'Has salido de la estación exitosamente.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al intentar salir de la estacion.' });
+    res.status(500).json({ mensaje: 'Error al intentar salir de la estación.' });
   }
 });
 
