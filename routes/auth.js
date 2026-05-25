@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Usuario = require('../models/usuarios');
 const auth = require('../middleware/auth'); 
-const Biomonitoreo = require('../models/biomonitoreo');
+const estacion = require('../models/estacion');
 
 const router = express.Router();
 
@@ -29,13 +29,13 @@ router.post('/registro', async (req, res) => {
     // 3. Determinar ROL o REBOTAR
     const codigoLimpio = codigo.trim().toUpperCase();
     let rolAsignado = '';
-    let proyectoEncontrado = null;
+    let estacionEncontrado = null;
 
     if (codigoLimpio === (process.env.CODIGO_RESP || 'ADMIN-ENCB')) {
       rolAsignado = 'Responsable';
     } else {
-      proyectoEncontrado = await Biomonitoreo.findOne({ codigo_invitacion: codigoLimpio });
-      if (proyectoEncontrado) {
+      estacionEncontrado = await estacion.findOne({ codigo_invitacion: codigoLimpio });
+      if (estacionEncontrado) {
         rolAsignado = 'Colaborador';
       } else {
         return res.status(400).json({ mensaje: 'Código inválido. No se puede crear la cuenta.' });
@@ -58,11 +58,11 @@ router.post('/registro', async (req, res) => {
     await nuevoUsuario.save();
     console.log("Usuario guardado en BD con rol:", rolAsignado);
 
-    // 6. Vincular a proyecto si es colaborador
-    if (proyectoEncontrado && rolAsignado === 'Colaborador') {
-      proyectoEncontrado.colaboradores_id.push(nuevoUsuario._id);
-      await proyectoEncontrado.save();
-      console.log("Vinculado al proyecto:", proyectoEncontrado.nombre_proyecto);
+    // 6. Vincular a estacion si es colaborador
+    if (estacionEncontrado && rolAsignado === 'Colaborador') {
+      estacionEncontrado.colaboradores_id.push(nuevoUsuario._id);
+      await estacionEncontrado.save();
+      console.log("Vinculado al estacion:", estacionEncontrado.nombre_estacion);
     }
 
     // 7. Generar el Token
@@ -142,20 +142,20 @@ router.post('/validar-codigo', auth, async (req, res) => {
             return res.status(200).json({ mensaje: '¡Bienvenido! Rol asignado: Responsable.' });
         }
 
-        const proyecto = await Biomonitoreo.findOne({ codigo_invitacion: codigo.toUpperCase() });
+        const estacion = await estacion.findOne({ codigo_invitacion: codigo.toUpperCase() });
         
-        if (proyecto) {
-            const yaEsMiembro = proyecto.colaboradores_id.includes(userId) || proyecto.responsable_id.includes(userId);
+        if (estacion) {
+            const yaEsMiembro = estacion.colaboradores_id.includes(userId) || estacion.responsable_id.includes(userId);
             
             if (!yaEsMiembro) {
-                proyecto.colaboradores_id.push(userId);
-                await proyecto.save();
+                estacion.colaboradores_id.push(userId);
+                await estacion.save();
                 await Usuario.findByIdAndUpdate(userId, { rol: 'Colaborador' });
             }
-            return res.status(200).json({ mensaje: `Te has unido al proyecto ${proyecto.nombre_proyecto} exitosamente.` });
+            return res.status(200).json({ mensaje: `Te has unido a la estacion ${estacion.nombre_estacion} exitosamente.` });
         }
 
-        return res.status(404).json({ mensaje: 'Código inválido o proyecto no encontrado.' });
+        return res.status(404).json({ mensaje: 'Código inválido o estacion no encontrado.' });
 
     } catch (error) {
         console.error(error);

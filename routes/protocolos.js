@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const Protocolo = require('../models/protocolo');
 const auth = require('../middleware/auth');
-const Biomonitoreo = require('../models/biomonitoreo');
+const estacion = require('../models/estacion');
 
 require('dotenv').config(); // <-- CRÍTICO para que process.env funcione
 
@@ -65,7 +65,7 @@ router.post('/sincronizar', auth, async (req, res) => {
 
     for (const prot of protocolos) {
       // Usamos 'let' porque vamos a modificar los datos si traen imágenes
-      let { biomonitoreo_id, protocolo_numero, datos_formulario, datos_protocolo_5 } = prot;
+      let { estacion_id, protocolo_numero, datos_formulario, datos_protocolo_5 } = prot;
 
       // ====================================================================
       // --- MAGIA 1: INTERCEPTAR FOTO GENERAL (Protocolo 2) ---
@@ -121,7 +121,7 @@ router.post('/sincronizar', auth, async (req, res) => {
 
       // 1. Buscamos si ESTE usuario ya tenía un borrador para ESTE protocolo
       let miProtocolo = await Protocolo.findOne({
-        biomonitoreo_id,
+        estacion_id,
         protocolo_numero,
         usuario_id: req.usuario.id
       });
@@ -133,21 +133,20 @@ router.post('/sincronizar', auth, async (req, res) => {
         miProtocolo.fecha_llenado = Date.now();
         await miProtocolo.save();
 
-        // Actualización de estado de protocolos en el proyecto (Protocolo 1)
-        // Actualización de estado de protocolos en el proyecto (Protocolos 1 y 5)
+        // Actualización de estado de protocolos en la estacion (Protocolos 1 y 5)
         if (protocolo_numero === 1) {
           const inSitu = datos_formulario.parametros_in_situ || {};
           const inSituLleno = Object.values(inSitu).some(valor => valor === true);
           const estadoCalculado = inSituLleno ? 2 : 1; 
 
-          await Biomonitoreo.findByIdAndUpdate(biomonitoreo_id, {
+          await estacion.findByIdAndUpdate(estacion_id, {
             $set: { 'estado_protocolos.protocolo1': estadoCalculado }
           });
         }
 
         // AGREGAR ESTA NUEVA CONDICIÓN PARA EL PROTOCOLO 5
         if (protocolo_numero === 5) {
-            await Biomonitoreo.findByIdAndUpdate(biomonitoreo_id, {
+            await estacion.findByIdAndUpdate(estacion_id, {
                 $set: { 'estado_protocolos.protocolo5': 2 } // 2 = Completo
             });
         }
@@ -156,7 +155,7 @@ router.post('/sincronizar', auth, async (req, res) => {
       } else {
         // ES NUEVO
         const protocoloAprobado = await Protocolo.findOne({
-          biomonitoreo_id,
+          estacion_id,
           protocolo_numero,
           estado: 'aprobado'
         });
@@ -165,7 +164,7 @@ router.post('/sincronizar', auth, async (req, res) => {
 
         const nuevoProtocolo = new Protocolo({
           usuario_id: req.usuario.id,
-          biomonitoreo_id,
+          estacion_id,
           protocolo_numero,
           datos_formulario,
           datos_protocolo_5,
@@ -179,7 +178,7 @@ router.post('/sincronizar', auth, async (req, res) => {
           const inSituLleno = Object.values(inSitu).some(valor => valor === true);
           const estadoCalculado = inSituLleno ? 2 : 1; 
 
-          await Biomonitoreo.findByIdAndUpdate(biomonitoreo_id, {
+          await estacion.findByIdAndUpdate(estacion_id, {
             $set: { 'estado_protocolos.protocolo1': estadoCalculado }
           });
         }
@@ -197,10 +196,10 @@ router.post('/sincronizar', auth, async (req, res) => {
 });
 
 // --- 2. OBTENER PROTOCOLOS DE UN PROYECTO ---
-router.get('/:biomonitoreo_id', auth, async (req, res) => {
+router.get('/:estacion_id', auth, async (req, res) => {
   try {
-    const { biomonitoreo_id } = req.params;
-    const protocolos = await Protocolo.find({ biomonitoreo_id })
+    const { estacion_id } = req.params;
+    const protocolos = await Protocolo.find({ estacion_id })
                                       .populate('usuario_id', 'nombre email');
     res.json(protocolos);
   } catch (error) {
@@ -223,7 +222,7 @@ router.put('/resolver/:id', auth, async (req, res) => {
     if (accion === 'aprobar') {
       // 1. Buscamos el protocolo que estaba aprobado actualmente en la web
       const antiguoAprobado = await Protocolo.findOne({ 
-        biomonitoreo_id: protocolo.biomonitoreo_id, 
+        estacion_id: protocolo.estacion_id, 
         protocolo_numero: protocolo.protocolo_numero, 
         estado: 'aprobado' 
       });
@@ -261,11 +260,11 @@ router.put('/resolver/:id', auth, async (req, res) => {
 });
 
 // --- 4. OBTENER MI BORRADOR GUARDADO ---
-router.get('/mi-borrador/:biomonitoreo_id/:protocolo_numero', auth, async (req, res) => {
+router.get('/mi-borrador/:estacion_id/:protocolo_numero', auth, async (req, res) => {
   try {
-    const { biomonitoreo_id, protocolo_numero } = req.params;
+    const { estacion_id, protocolo_numero } = req.params;
     const protocolo = await Protocolo.findOne({
-      biomonitoreo_id,
+      estacion_id,
       protocolo_numero,
       usuario_id: req.usuario.id
     });
