@@ -103,6 +103,7 @@ router.get('/mapa-datos', auth, async (req, res) => {
       obj.latitud = null;
       obj.longitud = null;
 
+      // Eliminamos el if que revisaba si protocolo5 > 0 para forzar la búsqueda
       const p2 = await Protocolo.findOne({ 
         estacion_id: estacionDoc._id, 
         protocolo_numero: 2 
@@ -113,15 +114,14 @@ router.get('/mapa-datos', auth, async (req, res) => {
         obj.longitud = parseFloat(p2.datos_formulario.textos.longitud);
       }
 
-      if (estacionDoc.estado_protocolos && estacionDoc.estado_protocolos.protocolo5 > 0) {
-        const p5 = await Protocolo.findOne({ 
-            estacion_id: estacionDoc._id, 
-            protocolo_numero: 5,
-            //estado: 'aprobado'
-        });
-        if (p5 && p5.datos_protocolo_5) {
-             obj.bmwp_total = p5.datos_protocolo_5.sumatoria_total_bmwp;
-        }
+      // Buscamos el P5 directamente sin restricciones de estado
+      const p5 = await Protocolo.findOne({ 
+          estacion_id: estacionDoc._id, 
+          protocolo_numero: 5
+      });
+      
+      if (p5 && p5.datos_protocolo_5) {
+           obj.bmwp_total = p5.datos_protocolo_5.sumatoria_total_bmwp;
       }
       return obj;
     }));
