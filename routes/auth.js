@@ -8,24 +8,20 @@ const estacion = require('../models/estacion');
 
 const router = express.Router();
 
-// --- 1. RUTA DE REGISTRO ---
 router.post('/registro', async (req, res) => {
   try {
     const { nombre, institucion, email, password, codigo } = req.body;
     console.log("Iniciando registro para:", email);
 
-    // 1. Validar presencia de código
     if (!codigo) {
       return res.status(400).json({ mensaje: 'El código de invitación es obligatorio.' });
     }
 
-    // 2. Verificar que el correo no exista
     const usuarioExistente = await Usuario.findOne({ email });
     if (usuarioExistente) {
       return res.status(400).json({ mensaje: 'Ese correo ya está registrado.' });
     }
 
-    // 3. Determinar ROL o REBOTAR
     const codigoLimpio = codigo.trim().toUpperCase();
     let rolAsignado = '';
     let estacionEncontrado = null;
@@ -41,11 +37,9 @@ router.post('/registro', async (req, res) => {
       }
     }
 
-    // 4. HASHEAR LA CONTRASEÑA
     const salt = await bcrypt.genSalt(10);
     const passwordEncriptada = await bcrypt.hash(password, salt);
 
-    // 5. Crear usuario
     const nuevoUsuario = new Usuario({
       nombre,
       institucion,
@@ -57,14 +51,12 @@ router.post('/registro', async (req, res) => {
     await nuevoUsuario.save();
     console.log("Usuario guardado en BD con rol:", rolAsignado);
 
-    // 6. Vincular a estacion si es colaborador
     if (estacionEncontrado && rolAsignado === 'Colaborador') {
       estacionEncontrado.colaboradores_id.push(nuevoUsuario._id);
       await estacionEncontrado.save();
       console.log("Vinculado al estacion:", estacionEncontrado.nombre_estacion);
     }
 
-    // 7. Generar el Token
     const secret = process.env.JWT_SECRET || 'llave_temporal_de_emergencia';
     try {
       const token = jwt.sign(
@@ -90,7 +82,6 @@ router.post('/registro', async (req, res) => {
   }
 });
 
-// --- 2. RUTA DE LOGIN ---
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -135,35 +126,46 @@ router.post('/validar-codigo', auth, async (req, res) => {
         const { codigo } = req.body;
         const userId = req.usuario.id;
 
+        if (!codigo) {
+            return res.status(400).json({ mensaje: 'Código no proporcionado.' });
+        }
+
         const codigoProfesor = process.env.CODIGO_RESP || 'ADMIN-ENCB';
         if (codigo.toUpperCase() === codigoProfesor) {
             await Usuario.findByIdAndUpdate(userId, { rol: 'Responsable' });
             return res.status(200).json({ mensaje: '¡Bienvenido! Rol asignado: Responsable.' });
         }
 
-        // CORRECCIÓN: Cambiamos "estacion" por "estacionEncontrada" para que no choque con el modelo
         const estacionEncontrada = await estacion.findOne({ codigo_invitacion: codigo.toUpperCase() });
         
         if (estacionEncontrada) {
-            const yaEsMiembro = estacionEncontrada.colaboradores_id.includes(userId) || estacionEncontrada.responsable_id.includes(userId);
+            const colaboradores = estacionEncontrada.colaboradores_id || [];
+            
+            const esColaborador = colaboradores.some(id => id.toString() === userId.toString());
+            
+            const responsable = estacionEncontrada.responsable_id;
+            const esResponsable = Array.isArray(responsable) 
+                ? responsable.some(id => id.toString() === userId.toString())
+                : (responsable && responsable.toString() === userId.toString());
+            
+            const yaEsMiembro = esColaborador || esResponsable;
             
             if (!yaEsMiembro) {
                 estacionEncontrada.colaboradores_id.push(userId);
                 await estacionEncontrada.save();
                 await Usuario.findByIdAndUpdate(userId, { rol: 'Colaborador' });
             }
-            return res.status(200).json({ mensaje: `Te has unido a la estacion ${estacionEncontrada.nombre_estacion} exitosamente.` });
+            return res.status(200).json({ mensaje: `Te has unido a la estación ${estacionEncontrada.nombre_estacion} exitosamente.` });
         }
 
-        return res.status(404).json({ mensaje: 'Código inválido o estacion no encontrada.' });
+        return res.status(404).json({ mensaje: 'Código inválido o estación no encontrada.' });
 
     } catch (error) {
-        console.error(error);
+        console.error("ERROR EXACTO EN VALIDAR-CODIGO:", error);
         res.status(500).json({ mensaje: 'Error interno al validar el código.' });
     }
 });
 
-// --- 4. RUTA DE PERFIL ---
 router.get('/perfil', auth, async (req, res) => {
   try {
     const usuario = await Usuario.findById(req.usuario.id).select('-password');
@@ -173,29 +175,24 @@ router.get('/perfil', auth, async (req, res) => {
     res.status(500).json({ mensaje: 'Error al obtener el perfil' });
   }
 });
-// --- 5. RUTA PARA CAMBIAR CONTRASEÑA ---
 router.put('/cambiar-password', auth, async (req, res) => {
   try {
     const { passwordActual, nuevaPassword } = req.body;
-    const usuarioId = req.usuario.id; // Viene del token gracias al middleware 'auth'
 
-    // 1. Buscamos al usuario en la base de datos
+
     const usuario = await Usuario.findById(usuarioId);
     if (!usuario) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
     }
 
-    // 2. Comparamos la contraseña actual que escribió con la que está en la BD
     const esValida = await bcrypt.compare(passwordActual, usuario.password);
     if (!esValida) {
       return res.status(400).json({ mensaje: 'La contraseña actual es incorrecta.' });
     }
 
-    // 3. Si es válida, encriptamos la NUEVA contraseña
     const salt = await bcrypt.genSalt(10);
     const nuevaPasswordEncriptada = await bcrypt.hash(nuevaPassword, salt);
 
-    // 4. Actualizamos el documento y lo guardamos
     usuario.password = nuevaPasswordEncriptada;
     await usuario.save();
 
@@ -212,13 +209,11 @@ router.put('/actualizar-perfil', auth, async (req, res) => {
     const { nombre, institucion } = req.body;
     const usuarioId = req.usuario.id;
 
-    // 1. Buscamos al usuario
     const usuario = await Usuario.findById(usuarioId);
     if (!usuario) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado.' });
     }
 
-    // 2. Actualizamos solo los campos que nos enviaron
     if (nombre) usuario.nombre = nombre;
     if (institucion) usuario.institucion = institucion;
 
