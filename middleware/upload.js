@@ -14,8 +14,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'deepbug_catalogos', // Carpeta donde se guardarán las fotos
-    //: ['jpg', 'png', 'jpeg']
+    folder: 'deepbug_catalogos',
   }
 });
 

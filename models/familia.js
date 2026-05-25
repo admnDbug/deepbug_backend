@@ -7,7 +7,7 @@ const familiaGlobalSchema = new mongoose.Schema({
   orden: { type: String },
   tamano: { type: String },
   descripcion: { type: String },
-  imagen_url: { type: String } // Aquí guardaremos el link de Cloudinary
+  imagen_url: { type: String }
 });
 
 module.exports = mongoose.model('FamiliaGlobal', familiaGlobalSchema);

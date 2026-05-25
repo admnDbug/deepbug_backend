@@ -17,13 +17,10 @@ const protocoloSchema = new mongoose.Schema({
   fecha_llenado: { type: Date, default: Date.now },
   protocolo_numero: { type: Number, required: true, min: 1, max: 5 },
   
-  // Para Protocolos 1, 2, 3 y 4 (Guarda un JSON flexible)
   datos_formulario: { type: mongoose.Schema.Types.Mixed },
   
-  // Para el Protocolo 5
   datos_protocolo_5: protocolo5Schema,
   
-  // Para manejar los conflictos si dos biólogos suben lo mismo sin internet
   estado: { type: String, enum: ['aprobado', 'en_conflicto', 'descartado'], default: 'aprobado' }
 });
 

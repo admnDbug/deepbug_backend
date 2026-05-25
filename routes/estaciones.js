@@ -1,7 +1,6 @@
 // Archivo: routes/estaciones.js
 const express = require('express');
 const router = express.Router();
-// 1. CORRECCIÓN: El modelo SIEMPRE se importa con Mayúscula inicial
 const Estacion = require('../models/estacion'); 
 const auth = require('../middleware/auth');
 const Protocolo = require('../models/protocolo'); 
@@ -17,13 +16,11 @@ function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-// --- 1. CREAR UNA NUEVA ESTACIÓN ---
 router.post('/', auth, async (req, res) => {
   try {
     if (req.usuario.rol === 'Colaborador') {
       return res.status(403).json({ mensaje: 'Los colaboradores no pueden crear estaciones.' });
     }
-    // 2. CORRECCIÓN: Ahora recibimos nombre_estacion
     const { nombre_estacion, zona_id } = req.body; 
     const codigo_invitacion = generarCodigo();
 
@@ -42,7 +39,6 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// --- 2. UNIRSE A UNA ESTACIÓN CON CÓDIGO ---
 router.post('/unirse', auth, async (req, res) => {
   try {
     const { codigo_invitacion } = req.body;
@@ -69,7 +65,6 @@ router.post('/unirse', auth, async (req, res) => {
   }
 });
 
-// --- 3. OBTENER MIS ESTACIONES (DASHBOARD) ---
 router.get('/', auth, async (req, res) => {
   try {
     const misEstaciones = await Estacion.find({
@@ -90,7 +85,6 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// --- 4. OBTENER DATOS PARA EL MAPA DEL DASHBOARD (COORDS P2 + BMWP P5) ---
 router.get('/mapa-datos', auth, async (req, res) => {
   try {
     const estaciones = await Estacion.find({})
@@ -103,7 +97,6 @@ router.get('/mapa-datos', auth, async (req, res) => {
       obj.latitud = null;
       obj.longitud = null;
 
-      // Eliminamos el if que revisaba si protocolo5 > 0 para forzar la búsqueda
       const p2 = await Protocolo.findOne({ 
         estacion_id: estacionDoc._id, 
         protocolo_numero: 2 
@@ -114,7 +107,6 @@ router.get('/mapa-datos', auth, async (req, res) => {
         obj.longitud = parseFloat(p2.datos_formulario.textos.longitud);
       }
 
-      // Buscamos el P5 directamente sin restricciones de estado
       const p5 = await Protocolo.findOne({ 
           estacion_id: estacionDoc._id, 
           protocolo_numero: 5
@@ -133,7 +125,6 @@ router.get('/mapa-datos', auth, async (req, res) => {
   }
 });
 
-// --- 5. REMOVER COLABORADOR ---
 router.put('/:id/remover-colaborador', auth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -158,7 +149,6 @@ router.put('/:id/remover-colaborador', auth, async (req, res) => {
   }
 });
 
-// --- 6. OBTENER UNA SOLA ESTACIÓN POR ID ---
 router.get('/:id', auth, async (req, res) => {
   try {
     const estacionDoc = await Estacion.findById(req.params.id)
@@ -176,7 +166,6 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// --- 7. ELIMINAR UNA ESTACIÓN COMPLETA (CON PURGA EN CASCADA COMPLETA DE IMÁGENES) ---
 router.delete('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -234,7 +223,6 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// --- 8. SALIR DE UNA ESTACIÓN (VOLUNTARIAMENTE) ---
 router.put('/:id/salir', auth, async (req, res) => {
   try {
     const { id } = req.params;

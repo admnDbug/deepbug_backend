@@ -14,7 +14,6 @@ const zonaSchema = new mongoose.Schema({
   descripcion: { type: String },
   coordenadas: { type: String }, 
   ubicacion: { type: String },   
-  // Ya no necesitamos 'codigo' aquí, porque el código de invitación vive en estacion
   catalogo_familias: [familiaSchema] 
 });
 

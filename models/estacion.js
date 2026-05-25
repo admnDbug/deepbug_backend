@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 
 const estacionSchema = new mongoose.Schema({
-  nombre_estacion: { type: String, required: true }, // Antes nombre_proyecto
+  nombre_estacion: { type: String, required: true },
   fecha_creacion: { type: Date, default: Date.now },
   codigo_invitacion: { type: String, required: true, unique: true },
   

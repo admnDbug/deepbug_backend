@@ -9,7 +9,6 @@ const estacion = require('../models/estacion');
 const router = express.Router();
 
 // --- 1. RUTA DE REGISTRO ---
-// --- 1. RUTA DE REGISTRO (ESTRICTA CON CÓDIGO) ---
 router.post('/registro', async (req, res) => {
   try {
     const { nombre, institucion, email, password, codigo } = req.body;
@@ -142,20 +141,21 @@ router.post('/validar-codigo', auth, async (req, res) => {
             return res.status(200).json({ mensaje: '¡Bienvenido! Rol asignado: Responsable.' });
         }
 
-        const estacion = await estacion.findOne({ codigo_invitacion: codigo.toUpperCase() });
+        // CORRECCIÓN: Cambiamos "estacion" por "estacionEncontrada" para que no choque con el modelo
+        const estacionEncontrada = await estacion.findOne({ codigo_invitacion: codigo.toUpperCase() });
         
-        if (estacion) {
-            const yaEsMiembro = estacion.colaboradores_id.includes(userId) || estacion.responsable_id.includes(userId);
+        if (estacionEncontrada) {
+            const yaEsMiembro = estacionEncontrada.colaboradores_id.includes(userId) || estacionEncontrada.responsable_id.includes(userId);
             
             if (!yaEsMiembro) {
-                estacion.colaboradores_id.push(userId);
-                await estacion.save();
+                estacionEncontrada.colaboradores_id.push(userId);
+                await estacionEncontrada.save();
                 await Usuario.findByIdAndUpdate(userId, { rol: 'Colaborador' });
             }
-            return res.status(200).json({ mensaje: `Te has unido a la estacion ${estacion.nombre_estacion} exitosamente.` });
+            return res.status(200).json({ mensaje: `Te has unido a la estacion ${estacionEncontrada.nombre_estacion} exitosamente.` });
         }
 
-        return res.status(404).json({ mensaje: 'Código inválido o estacion no encontrado.' });
+        return res.status(404).json({ mensaje: 'Código inválido o estacion no encontrada.' });
 
     } catch (error) {
         console.error(error);

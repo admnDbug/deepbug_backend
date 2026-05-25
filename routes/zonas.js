@@ -6,10 +6,8 @@ const auth = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 
-// --- 1. OBTENER TODAS LAS ZONAS Y SUS CATÁLOGOS ---
 router.get('/', auth, async (req, res) => {
   try {
-    // BLOQUEO DE SEGURIDAD: Los colaboradores no tienen por qué ver el catálogo raíz
     if (req.usuario.rol === 'Colaborador') {
       return res.status(403).json({ 
         mensaje: 'Acceso denegado. Solo los Responsables o Administradores pueden acceder a los catálogos geográficos.' 
@@ -25,10 +23,8 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// --- 2. CREAR UNA NUEVA ZONA ---
 router.post('/', auth, async (req, res) => {
   try {
-    // REGLA DE NEGOCIO: Solo Responsable o Administrador pueden crear Zonas
     if (req.usuario.rol === 'Colaborador') {
       return res.status(403).json({ mensaje: 'No tienes permisos para crear zonas o catálogos.' });
     }
@@ -42,9 +38,6 @@ router.post('/', auth, async (req, res) => {
     res.status(500).json({ mensaje: 'Error al crear la zona' });
   }
 });
-
-// --- RUTA PARA AGREGAR UNA FAMILIA A UNA ZONA EXISTENTE (CON IMAGEN) ---
-// (Mantenemos esta ruta por si la usas en otra parte de tu sistema con Multer)
 router.post('/:zonaId/familia', [auth, upload.single('imagen')], async (req, res) => {
   try {
     if (req.usuario.rol === 'Colaborador') {
@@ -79,7 +72,6 @@ router.post('/:zonaId/familia', [auth, upload.single('imagen')], async (req, res
   }
 });
 
-// --- 3. ELIMINAR UNA ZONA ---
 router.delete('/:id', auth, async (req, res) => {
   try {
     if (req.usuario.rol === 'Colaborador') {
@@ -100,7 +92,6 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// --- OBTENER UNA ZONA INDIVIDUAL POR ID (Para precarga en el Frontend) ---
 router.get('/:id', auth, async (req, res) => {
   try {
     const zona = await Zona.findById(req.params.id);
@@ -112,8 +103,6 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// --- MODIFICAR CONFIGURACIÓN GENERAL DE UNA ZONA EXISTENTE (PUT) ---
-// *MODIFICADO*: Ya no actualiza el array de familias, solo los datos generales
 router.put('/:id', auth, async (req, res) => {
   try {
     const { nombre, coordenadas, ubicacion, descripcion } = req.body;
@@ -139,7 +128,6 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
-// --- ENDPOINT PARA AÑADIR UNA FAMILIA A UNA ZONA SIN BORRAR LAS DEMÁS (POST ATÓMICO) ---
 router.post('/:id/familias', auth, async (req, res) => {
   try {
     const { nombre_familia, orden, valor_bmwp, tamano, imagen_url } = req.body;
@@ -171,8 +159,6 @@ router.post('/:id/familias', auth, async (req, res) => {
   }
 });
 
-// --- ENDPOINT PARA ELIMINAR UNA FAMILIA DE UNA ZONA SIN BORRAR LAS DEMÁS (DELETE ATÓMICO) ---
-// *NUEVO*: Permite quitar una familia específica usando el botón "X" del frontend
 router.delete('/:id/familias/:nombre', auth, async (req, res) => {
   try {
     const zonaActualizada = await Zona.findByIdAndUpdate(
