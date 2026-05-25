@@ -29,15 +29,15 @@ router.post('/', auth, async (req, res) => {
     const { nombre_proyecto, zona_id } = req.body;
     const codigo_invitacion = generarCodigo();
 
-    const nuevoProyecto = new estacion({
+    const nuevaEstacion = new estacion({
       nombre_proyecto,
       zona_id,
       codigo_invitacion,
       responsable_id: [req.usuario.id]
     });
 
-    await nuevoProyecto.save();
-    res.status(201).json({ mensaje: 'Proyecto creado exitosamente', proyecto: nuevoProyecto });
+    await nuevaEstacion.save();
+    res.status(201).json({ mensaje: 'Estacion creada exitosamente', estacion: nuevaEstacion });
   } catch (error) {
     console.error(error);
     res.status(500).json({ mensaje: 'Error al crear el estacion' });
@@ -74,7 +74,7 @@ router.post('/unirse', auth, async (req, res) => {
 // --- 3. OBTENER MIS PROYECTOS (DASHBOARD) ---
 router.get('/', auth, async (req, res) => {
   try {
-    const misProyectos = await estacion.find({
+    const misEstaciones = await estacion.find({
       $or: [
         { responsable_id: req.usuario.id },
         { colaboradores_id: req.usuario.id }
@@ -85,7 +85,7 @@ router.get('/', auth, async (req, res) => {
     .populate('colaboradores_id', 'nombre')
     .sort({ fecha_creacion: -1 });
 
-    res.json(misProyectos);
+    res.json(misEstaciones);
   } catch (error) {
     console.error(error);
     res.status(500).json({ mensaje: 'Error al obtener los proyectos' });
@@ -99,7 +99,7 @@ router.put('/:id/remover-colaborador', auth, async (req, res) => {
     const { colaborador_id } = req.body;
 
     const estacion = await estacion.findById(id);
-    if (!estacion) return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
+    if (!estacion) return res.status(404).json({ mensaje: 'Estacion no encontrado' });
 
     if (!estacion.responsable_id.some(id => id.toString() === req.usuario.id.toString())) {
       return res.status(403).json({ mensaje: 'Solo el Responsable puede eliminar colaboradores' });
@@ -126,12 +126,12 @@ router.get('/:id', auth, async (req, res) => {
       .populate('colaboradores_id', 'nombre email');
 
     if (!proyecto) {
-      return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
+      return res.status(404).json({ mensaje: 'Estacion no encontrado' });
     }
     res.json(proyecto);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al obtener el proyecto' });
+    res.status(500).json({ mensaje: 'Error al obtener la estacion' });
   }
 });
 
@@ -187,7 +187,7 @@ router.delete('/:id', auth, async (req, res) => {
     const proyecto = await estacion.findById(id);
 
     if (!proyecto) {
-      return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
+      return res.status(404).json({ mensaje: 'Estacion no encontrada' });
     }
 
     // 🔒 Seguridad: Verificamos que el que pide eliminar sea legalmente responsable
@@ -195,7 +195,7 @@ router.delete('/:id', auth, async (req, res) => {
     const esResponsable = proyecto.responsable_id.some(respId => respId.toString() === userIdText);
 
     if (!esResponsable) {
-      return res.status(403).json({ mensaje: 'Solo el responsable puede eliminar este proyecto.' });
+      return res.status(403).json({ mensaje: 'Solo el responsable puede eliminar esta estacion.' });
     }
 
     // A) Encontrar todos los protocolos vinculados a este proyecto para raspar sus fotos
@@ -253,23 +253,23 @@ router.put('/:id/salir', auth, async (req, res) => {
     const estacion = await estacion.findById(id);
 
     if (!estacion) {
-      return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
+      return res.status(404).json({ mensaje: 'Estacion no encontrada' });
     }
 
     const userIdText = req.usuario.id.toString();
     const esColaborador = estacion.colaboradores_id.some(colab => colab.toString() === userIdText);
 
     if (!esColaborador) {
-      return res.status(400).json({ mensaje: 'No eres colaborador de este proyecto o ya saliste.' });
+      return res.status(400).json({ mensaje: 'No eres colaborador de esta estacion o ya saliste.' });
     }
 
     estacion.colaboradores_id = estacion.colaboradores_id.filter(colab => colab.toString() !== userIdText);
     await estacion.save();
     
-    res.json({ mensaje: 'Has salido del proyecto exitosamente.' });
+    res.json({ mensaje: 'Has salido de la estacion exitosamente.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al intentar salir del proyecto.' });
+    res.status(500).json({ mensaje: 'Error al intentar salir de la estacion.' });
   }
 });
 

@@ -133,8 +133,7 @@ router.post('/sincronizar', auth, async (req, res) => {
         miProtocolo.fecha_llenado = Date.now();
         await miProtocolo.save();
 
-        // Actualización de estado de protocolos en el proyecto (Protocolo 1)
-        // Actualización de estado de protocolos en el proyecto (Protocolos 1 y 5)
+        // Actualización de estado de protocolos en la estacion (Protocolos 1 y 5)
         if (protocolo_numero === 1) {
           const inSitu = datos_formulario.parametros_in_situ || {};
           const inSituLleno = Object.values(inSitu).some(valor => valor === true);
