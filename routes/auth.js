@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Usuario = require('../models/usuarios');
 const auth = require('../middleware/auth'); 
-const Biomonitoreo = require('../models/biomonitoreo');
+const estacion = require('../models/estacion');
 
 const router = express.Router();
 
@@ -34,7 +34,7 @@ router.post('/registro', async (req, res) => {
     if (codigoLimpio === (process.env.CODIGO_RESP || 'ADMIN-ENCB')) {
       rolAsignado = 'Responsable';
     } else {
-      proyectoEncontrado = await Biomonitoreo.findOne({ codigo_invitacion: codigoLimpio });
+      proyectoEncontrado = await estacion.findOne({ codigo_invitacion: codigoLimpio });
       if (proyectoEncontrado) {
         rolAsignado = 'Colaborador';
       } else {
@@ -142,7 +142,7 @@ router.post('/validar-codigo', auth, async (req, res) => {
             return res.status(200).json({ mensaje: '¡Bienvenido! Rol asignado: Responsable.' });
         }
 
-        const proyecto = await Biomonitoreo.findOne({ codigo_invitacion: codigo.toUpperCase() });
+        const proyecto = await estacion.findOne({ codigo_invitacion: codigo.toUpperCase() });
         
         if (proyecto) {
             const yaEsMiembro = proyecto.colaboradores_id.includes(userId) || proyecto.responsable_id.includes(userId);

@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const authRoutes = require('./routes/auth'); // Rutas de autenticación (registro y login)
 const zonasRoutes = require('./routes/zonas'); 
-const biomonitoreosRoutes = require('./routes/biomonitoreos');
+const estacionesRoutes = require('./routes/estaciones');
 const protocolosRoutes = require('./routes/protocolos');
 const familiasRoutes = require('./routes/familias');
 
@@ -35,7 +35,7 @@ app.get('/', (req, res) => {
 // --- RUTAS DE LA API ---
 app.use('/api/auth', authRoutes);
 app.use('/api/zonas', zonasRoutes); 
-app.use('/api/biomonitoreos', biomonitoreosRoutes);
+app.use('/api/estaciones', estacionesRoutes);
 app.use('/api/protocolos', protocolosRoutes);
 
 // --- INICIO DEL SERVIDOR ---

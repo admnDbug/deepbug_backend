@@ -1,4 +1,4 @@
-// Archivo: models/Biomonitoreo.js (Puedes renombrarlo a Estacion.js si lo deseas)
+// Archivo: models/estacion.js (Puedes renombrarlo a Estacion.js si lo deseas)
 const mongoose = require('mongoose');
 
 const estacionSchema = new mongoose.Schema({

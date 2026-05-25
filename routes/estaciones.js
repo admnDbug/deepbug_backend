@@ -1,7 +1,7 @@
-// Archivo: routes/biomonitoreos.js
+// Archivo: routes/estaciones.js
 const express = require('express');
 const router = express.Router();
-const Biomonitoreo = require('../models/biomonitoreo');
+const estacion = require('../models/estacion');
 const auth = require('../middleware/auth');
 const Protocolo = require('../models/protocolo'); // Asegura la importación del modelo de protocolos
 
@@ -20,7 +20,7 @@ function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-// --- 1. CREAR UN NUEVO BIOMONITOREO ---
+// --- 1. CREAR UN NUEVO estacion ---
 router.post('/', auth, async (req, res) => {
   try {
     if (req.usuario.rol === 'Colaborador') {
@@ -29,7 +29,7 @@ router.post('/', auth, async (req, res) => {
     const { nombre_proyecto, zona_id } = req.body;
     const codigo_invitacion = generarCodigo();
 
-    const nuevoProyecto = new Biomonitoreo({
+    const nuevoProyecto = new estacion({
       nombre_proyecto,
       zona_id,
       codigo_invitacion,
@@ -40,7 +40,7 @@ router.post('/', auth, async (req, res) => {
     res.status(201).json({ mensaje: 'Proyecto creado exitosamente', proyecto: nuevoProyecto });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al crear el biomonitoreo' });
+    res.status(500).json({ mensaje: 'Error al crear el estacion' });
   }
 });
 
@@ -48,7 +48,7 @@ router.post('/', auth, async (req, res) => {
 router.post('/unirse', auth, async (req, res) => {
   try {
     const { codigo_invitacion } = req.body;
-    const proyecto = await Biomonitoreo.findOne({ codigo_invitacion });
+    const proyecto = await estacion.findOne({ codigo_invitacion });
 
     if (!proyecto) {
       return res.status(404).json({ mensaje: 'Código de invitación inválido o no existe.' });
@@ -74,7 +74,7 @@ router.post('/unirse', auth, async (req, res) => {
 // --- 3. OBTENER MIS PROYECTOS (DASHBOARD) ---
 router.get('/', auth, async (req, res) => {
   try {
-    const misProyectos = await Biomonitoreo.find({
+    const misProyectos = await estacion.find({
       $or: [
         { responsable_id: req.usuario.id },
         { colaboradores_id: req.usuario.id }
@@ -98,18 +98,18 @@ router.put('/:id/remover-colaborador', auth, async (req, res) => {
     const { id } = req.params;
     const { colaborador_id } = req.body;
 
-    const biomonitoreo = await Biomonitoreo.findById(id);
-    if (!biomonitoreo) return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
+    const estacion = await estacion.findById(id);
+    if (!estacion) return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
 
-    if (!biomonitoreo.responsable_id.some(id => id.toString() === req.usuario.id.toString())) {
+    if (!estacion.responsable_id.some(id => id.toString() === req.usuario.id.toString())) {
       return res.status(403).json({ mensaje: 'Solo el Responsable puede eliminar colaboradores' });
     }
 
-    biomonitoreo.colaboradores_id = biomonitoreo.colaboradores_id.filter(
+    estacion.colaboradores_id = estacion.colaboradores_id.filter(
       colab => colab.toString() !== colaborador_id
     );
 
-    await biomonitoreo.save();
+    await estacion.save();
     res.json({ mensaje: 'Colaborador removido exitosamente' });
   } catch (error) {
     console.error(error);
@@ -120,7 +120,7 @@ router.put('/:id/remover-colaborador', auth, async (req, res) => {
 // --- 5. OBTENER UN SOLO PROYECTO POR ID ---
 router.get('/:id', auth, async (req, res) => {
   try {
-    const proyecto = await Biomonitoreo.findById(req.params.id)
+    const proyecto = await estacion.findById(req.params.id)
       .populate('zona_id', 'nombre catalogo_familias')
       .populate('responsable_id', 'nombre email')
       .populate('colaboradores_id', 'nombre email');
@@ -135,35 +135,48 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// --- 6. OBTENER TODOS LOS PROYECTOS PARA CONSULTAS ---
-router.get('/consultas/todos', auth, async (req, res) => {
+// --- 6. OBTENER DATOS PARA EL MAPA DEL DASHBOARD (COORDS P2 + BMWP P5) ---
+router.get('/mapa-datos', auth, async (req, res) => {
   try {
-    const todosLosProyectos = await Biomonitoreo.find({})
-    .populate('zona_id', 'nombre ubicacion coordenadas')
-    .populate('responsable_id', 'nombre');
+    const estaciones = await Estacion.find({})
+      .populate('zona_id', 'nombre')
+      .populate('responsable_id', 'nombre');
 
-    const proyectosConBMWP = await Promise.all(todosLosProyectos.map(async (proyecto) => {
-      let proyectoObj = proyecto.toObject();
-      proyectoObj.bmwp_total = null;
+    const estacionesParaMapa = await Promise.all(estaciones.map(async (estacion) => {
+      let obj = estacion.toObject();
+      obj.bmwp_total = null;
+      obj.latitud = null;
+      obj.longitud = null;
 
-      if (proyecto.estado_protocolos && proyecto.estado_protocolos.protocolo5 > 0) {
-        const proto5 = await Protocolo.findOne({ 
-            biomonitoreo_id: proyecto._id, 
+      // A) Extraer Coordenadas del Protocolo 2 (Viven dentro del objeto 'textos')
+      const p2 = await Protocolo.findOne({ 
+        estacion_id: estacion._id, // Nota: Si cambiaste este campo en el Schema a estacion_id, actualízalo aquí
+        protocolo_numero: 2 
+      });
+      
+      if (p2 && p2.datos_formulario && p2.datos_formulario.textos) {
+        obj.latitud = parseFloat(p2.datos_formulario.textos.latitud);
+        obj.longitud = parseFloat(p2.datos_formulario.textos.longitud);
+      }
+
+      // B) Extraer BMWP del Protocolo 5
+      if (estacion.estado_protocolos && estacion.estado_protocolos.protocolo5 > 0) {
+        const p5 = await Protocolo.findOne({ 
+            estacion_id: estacion._id, 
             protocolo_numero: 5,
             estado: 'aprobado'
         });
-
-        if (proto5 && proto5.datos_protocolo_5) {
-             proyectoObj.bmwp_total = proto5.datos_protocolo_5.sumatoria_total_bmwp;
+        if (p5 && p5.datos_protocolo_5) {
+             obj.bmwp_total = p5.datos_protocolo_5.sumatoria_total_bmwp;
         }
       }
-      return proyectoObj;
+      return obj;
     }));
 
-    res.json(proyectosConBMWP);
+    res.json(estacionesParaMapa);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensaje: 'Error al obtener todos los proyectos para consulta' });
+    res.status(500).json({ mensaje: 'Error al obtener datos para el mapa geográfico' });
   }
 });
 
@@ -171,7 +184,7 @@ router.get('/consultas/todos', auth, async (req, res) => {
 router.delete('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const proyecto = await Biomonitoreo.findById(id);
+    const proyecto = await estacion.findById(id);
 
     if (!proyecto) {
       return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
@@ -186,7 +199,7 @@ router.delete('/:id', auth, async (req, res) => {
     }
 
     // A) Encontrar todos los protocolos vinculados a este proyecto para raspar sus fotos
-    const protocolosAsociados = await Protocolo.find({ biomonitoreo_id: id });
+    const protocolosAsociados = await Protocolo.find({ estacion_id: id });
     console.log(`[Purga Global] Iniciando limpieza de imágenes para el proyecto: ${id}`);
     
     // B) Iteramos cada protocolo para destruir las evidencias en Cloudinary
@@ -223,10 +236,10 @@ router.delete('/:id', auth, async (req, res) => {
     }
 
     // C) Borramos de raíz los registros lógicos en MongoDB
-    await Protocolo.deleteMany({ biomonitoreo_id: id });
-    await Biomonitoreo.findByIdAndDelete(id);
+    await Protocolo.deleteMany({ estacion_id: id });
+    await estacion.findByIdAndDelete(id);
 
-    res.json({ mensaje: '¡Éxito! El biomonitoreo, todos sus protocolos y sus respectivas imágenes en Cloudinary han sido eliminados de raíz de forma segura.' });
+    res.json({ mensaje: '¡Éxito! La estacion, todos sus protocolos y sus respectivas imágenes en Cloudinary han sido eliminados de raíz de forma segura.' });
   } catch (error) {
     console.error("Error en borrado en cascada:", error);
     res.status(500).json({ mensaje: 'Error al eliminar el proyecto' });
@@ -237,21 +250,21 @@ router.delete('/:id', auth, async (req, res) => {
 router.put('/:id/salir', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const biomonitoreo = await Biomonitoreo.findById(id);
+    const estacion = await estacion.findById(id);
 
-    if (!biomonitoreo) {
+    if (!estacion) {
       return res.status(404).json({ mensaje: 'Proyecto no encontrado' });
     }
 
     const userIdText = req.usuario.id.toString();
-    const esColaborador = biomonitoreo.colaboradores_id.some(colab => colab.toString() === userIdText);
+    const esColaborador = estacion.colaboradores_id.some(colab => colab.toString() === userIdText);
 
     if (!esColaborador) {
       return res.status(400).json({ mensaje: 'No eres colaborador de este proyecto o ya saliste.' });
     }
 
-    biomonitoreo.colaboradores_id = biomonitoreo.colaboradores_id.filter(colab => colab.toString() !== userIdText);
-    await biomonitoreo.save();
+    estacion.colaboradores_id = estacion.colaboradores_id.filter(colab => colab.toString() !== userIdText);
+    await estacion.save();
     
     res.json({ mensaje: 'Has salido del proyecto exitosamente.' });
   } catch (error) {
