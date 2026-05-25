@@ -117,7 +117,7 @@ router.get('/mapa-datos', auth, async (req, res) => {
         const p5 = await Protocolo.findOne({ 
             estacion_id: estacionDoc._id, 
             protocolo_numero: 5,
-            estado: 'aprobado'
+            //estado: 'aprobado'
         });
         if (p5 && p5.datos_protocolo_5) {
              obj.bmwp_total = p5.datos_protocolo_5.sumatoria_total_bmwp;
