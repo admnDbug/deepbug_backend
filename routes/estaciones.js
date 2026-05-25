@@ -92,49 +92,6 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// --- 4. REMOVER COLABORADOR ---
-router.put('/:id/remover-colaborador', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { colaborador_id } = req.body;
-
-    const estacion = await estacion.findById(id);
-    if (!estacion) return res.status(404).json({ mensaje: 'Estacion no encontrado' });
-
-    if (!estacion.responsable_id.some(id => id.toString() === req.usuario.id.toString())) {
-      return res.status(403).json({ mensaje: 'Solo el Responsable puede eliminar colaboradores' });
-    }
-
-    estacion.colaboradores_id = estacion.colaboradores_id.filter(
-      colab => colab.toString() !== colaborador_id
-    );
-
-    await estacion.save();
-    res.json({ mensaje: 'Colaborador removido exitosamente' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ mensaje: 'Error al remover colaborador' });
-  }
-});
-
-// --- 5. OBTENER UN SOLO PROYECTO POR ID ---
-router.get('/:id', auth, async (req, res) => {
-  try {
-    const proyecto = await estacion.findById(req.params.id)
-      .populate('zona_id', 'nombre catalogo_familias')
-      .populate('responsable_id', 'nombre email')
-      .populate('colaboradores_id', 'nombre email');
-
-    if (!proyecto) {
-      return res.status(404).json({ mensaje: 'Estacion no encontrado' });
-    }
-    res.json(proyecto);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ mensaje: 'Error al obtener la estacion' });
-  }
-});
-
 // --- 6. OBTENER DATOS PARA EL MAPA DEL DASHBOARD (COORDS P2 + BMWP P5) ---
 router.get('/mapa-datos', auth, async (req, res) => {
   try {
@@ -177,6 +134,49 @@ router.get('/mapa-datos', auth, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ mensaje: 'Error al obtener datos para el mapa geográfico' });
+  }
+});
+
+// --- 4. REMOVER COLABORADOR ---
+router.put('/:id/remover-colaborador', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { colaborador_id } = req.body;
+
+    const estacion = await estacion.findById(id);
+    if (!estacion) return res.status(404).json({ mensaje: 'Estacion no encontrado' });
+
+    if (!estacion.responsable_id.some(id => id.toString() === req.usuario.id.toString())) {
+      return res.status(403).json({ mensaje: 'Solo el Responsable puede eliminar colaboradores' });
+    }
+
+    estacion.colaboradores_id = estacion.colaboradores_id.filter(
+      colab => colab.toString() !== colaborador_id
+    );
+
+    await estacion.save();
+    res.json({ mensaje: 'Colaborador removido exitosamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensaje: 'Error al remover colaborador' });
+  }
+});
+
+// --- 5. OBTENER UN SOLO PROYECTO POR ID ---
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const proyecto = await estacion.findById(req.params.id)
+      .populate('zona_id', 'nombre catalogo_familias')
+      .populate('responsable_id', 'nombre email')
+      .populate('colaboradores_id', 'nombre email');
+
+    if (!proyecto) {
+      return res.status(404).json({ mensaje: 'Estacion no encontrado' });
+    }
+    res.json(proyecto);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ mensaje: 'Error al obtener la estacion' });
   }
 });
 
